@@ -22,19 +22,6 @@ A lightweight, high-performance workflow engine designed for seamless integratio
 go get github.com/ComingCL/go-workflow
 ```
 
-## 🏗️ Architecture
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  WorkflowEngine │────│ WorkflowController│────│ CronScheduler   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   WorkflowDAG   │    │ WorkflowRepository│    │    Logger       │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
 ### Core Components
 
 - **WorkflowEngine**: Executes workflows with DAG parsing and node orchestration
@@ -144,14 +131,7 @@ func (r *MyRepository) UpdateWorkflowInstance(ctx context.Context, wf *workflow.
 controller.SetRepository(&MyRepository{})
 ```
 
-## 📊 Node Types & States
-
-### Node Types
-- `NodeTypeStart` - Workflow entry point
-- `NodeTypeEnd` - Workflow completion
-- `NodeTypeBuild` - Build operations
-- `NodeTypeDeploy` - Deployment tasks
-- `NodeTypeApiCall` - API interactions
+## 📊 Node States
 
 ### Node States
 - `NodePending` - Awaiting execution
