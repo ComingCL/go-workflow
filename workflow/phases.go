@@ -50,13 +50,3 @@ func (n NodePhase) Completed() bool {
 
 // NodeType is the type of a node
 type NodeType string
-
-// Node types
-
-const (
-	NodeTypeStart   NodeType = "start"
-	NodeTypeEnd     NodeType = "end"
-	NodeTypeDeploy  NodeType = "deploy"
-	NodeTypeApiCall NodeType = "api-call"
-	NodeTypeBuild   NodeType = "build"
-)
