@@ -3,11 +3,33 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/ComingCL/go-workflow/workflow"
 	"github.com/robfig/cron/v3"
 )
+
+// Node types - define locally since they might be missing from the package
+const (
+	NodeTypeStart   workflow.NodeType = "start"
+	NodeTypeEnd     workflow.NodeType = "end"
+	NodeTypeDeploy  workflow.NodeType = "deploy"
+	NodeTypeApiCall workflow.NodeType = "api-call"
+	NodeTypeBuild   workflow.NodeType = "build"
+)
+
+// Scheduled task executor
+type ScheduledExecutor struct{}
+
+func (e *ScheduledExecutor) ExecuteWorkflowNode(ctx context.Context, data workflow.NodeData) workflow.Result {
+	fmt.Printf("✅ Scheduled task executed at %s with data: %v\n", time.Now().Format("2006-01-02 15:04:05"), data)
+	return workflow.Result{
+		Err:     nil,
+		Message: "Scheduled task completed successfully",
+	}
+}
 
 // Simple logger implementation
 type SimpleLogger struct{}
@@ -23,6 +45,7 @@ func (l *SimpleLogger) Error(err error, msg string, keysAndValues ...interface{}
 // Simple repository implementation for scheduled workflows
 type SimpleRepository struct {
 	workflows map[string]*workflow.Workflow
+	mu        sync.RWMutex
 }
 
 func NewSimpleRepository() *SimpleRepository {
@@ -32,6 +55,8 @@ func NewSimpleRepository() *SimpleRepository {
 }
 
 func (r *SimpleRepository) GetWorkflowInstance(ctx context.Context, uid string) (*workflow.Workflow, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	wf, exists := r.workflows[uid]
 	if !exists {
 		return nil, fmt.Errorf("workflow not found: %s", uid)
@@ -40,11 +65,16 @@ func (r *SimpleRepository) GetWorkflowInstance(ctx context.Context, uid string) 
 }
 
 func (r *SimpleRepository) UpdateWorkflowInstance(ctx context.Context, wf *workflow.Workflow) error {
-	r.workflows[wf.TID] = wf
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.workflows[wf.UID] = wf
 	return nil
 }
 
 func (r *SimpleRepository) ListScheduledWorkflows(ctx context.Context) ([]*workflow.Workflow, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	workflows := make([]*workflow.Workflow, 0, len(r.workflows))
 	for _, wf := range r.workflows {
 		if wf.IsScheduled() {
@@ -56,23 +86,48 @@ func (r *SimpleRepository) ListScheduledWorkflows(ctx context.Context) ([]*workf
 
 func (r *SimpleRepository) CreateWorkflowInstance(ctx context.Context, uid string) error {
 	// For demo purposes, just log the creation
-	fmt.Printf("Creating workflow instance for template: %s\n", uid)
+	fmt.Printf("📝 Creating workflow instance for template: %s\n", uid)
 	return nil
 }
 
-func main() {
-	ctx := context.Background()
+// Simple manual scheduler for demonstration
+func runScheduledWorkflow(ctx context.Context, engine *workflow.WorkflowEngine, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 
-	// Create workflow with scheduled execution
+	fmt.Printf("🕐 Starting scheduled execution every %v\n", interval)
+
+	for {
+		select {
+		case <-ctx.Done():
+			fmt.Println("🛑 Scheduler stopped")
+			return
+		case <-ticker.C:
+			fmt.Printf("\n⏰ Executing scheduled workflow at %s\n", time.Now().Format("15:04:05"))
+			err := engine.ExecuteWorkflow(ctx)
+			if err != nil {
+				fmt.Printf("❌ Workflow execution failed: %v\n", err)
+			} else {
+				fmt.Printf("✅ Workflow executed successfully\n")
+			}
+		}
+	}
+}
+
+func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create workflow
 	wf := &workflow.Workflow{
 		Metadata: workflow.Metadata{
 			Name:        "scheduled-workflow",
-			DisplayName: "Scheduled Workflow",
+			DisplayName: "Scheduled Workflow Demo",
 			UID:         "scheduled-001",
 			TID:         "scheduled-template-001",
 		},
 		Spec: workflow.Spec{
-			Schedule: "*/1 * * * *", // Execute every minute for demo (5 fields format)
+			Schedule: "*/10 * * * * *", // Every 10 seconds for demo
 		},
 	}
 
@@ -85,26 +140,45 @@ func main() {
 	repository := NewSimpleRepository()
 	controller.SetRepository(repository)
 
-	// Store the workflow in repository for scheduling
-	repository.workflows[wf.TID] = wf
-
-	// Add scheduled workflow to controller
-	err := controller.AddScheduledWorkflow(ctx, wf)
+	// Create engine
+	engine, err := workflow.NewEngine(ctx, wf, controller, repository)
 	if err != nil {
-		fmt.Printf("Failed to add scheduled workflow: %v\n", err)
+		fmt.Printf("❌ Failed to create engine: %v\n", err)
 		return
 	}
 
-	fmt.Println("Starting scheduled workflow...")
-	fmt.Println("Workflow will execute every minute. Press Ctrl+C to stop.")
+	// Register node executor
+	executor := &ScheduledExecutor{}
+	err = engine.RegisterFunc(NodeTypeBuild, executor)
+	if err != nil {
+		fmt.Printf("❌ Failed to register executor: %v\n", err)
+		return
+	}
 
-	// Start the controller
-	controller.Run(ctx)
+	// Add a sample node to the workflow
+	err = engine.AddWorkflowNode("task1", "Scheduled Task", NodeTypeBuild, map[string]interface{}{
+		"message":   "Hello from scheduled workflow",
+		"timestamp": time.Now().Format("15:04:05"),
+		"counter":   0,
+	})
+	if err != nil {
+		fmt.Printf("❌ Failed to add node: %v\n", err)
+		return
+	}
 
-	// Keep the program running for a while to see scheduled executions
-	time.Sleep(5 * time.Minute)
+	fmt.Println("🚀 Starting scheduled workflow demo...")
+	fmt.Println("📋 Workflow will execute every 10 seconds")
+	fmt.Println("⏹️  Press Ctrl+C to stop")
+	fmt.Println(strings.Repeat("-", 50))
 
-	// Stop the controller
-	controller.Stop()
-	fmt.Println("Stopped scheduled workflow.")
+	// Run our simple scheduler in a goroutine
+	go runScheduledWorkflow(ctx, engine, 10*time.Second)
+
+	// Keep the program running for demo
+	time.Sleep(30 * time.Second)
+
+	fmt.Println(strings.Repeat("-", 50))
+	fmt.Println("🏁 Demo completed, stopping scheduler...")
+	cancel()
+	time.Sleep(1 * time.Second)
 }
