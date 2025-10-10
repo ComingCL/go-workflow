@@ -204,10 +204,10 @@ func (oc *WorkflowEngine) ExecuteWorkflow(ctx context.Context) error {
 	// Check if all nodes completed successfully
 	if oc.isWorkflowCompleted() {
 		oc.wf.Status.Phase = Succeeded
-		oc.wf.Status.Message = "[WorkflowEngine] Workflow执行成功"
+		oc.wf.Status.Message = "[WorkflowEngine] Workflow execute succeeded"
 	} else {
 		oc.wf.Status.Phase = Failed
-		oc.wf.Status.Message = "[WorkflowEngine] Workflow执行失败"
+		oc.wf.Status.Message = "[WorkflowEngine] Workflow execute failed"
 	}
 
 	// Update record
