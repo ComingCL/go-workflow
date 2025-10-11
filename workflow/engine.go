@@ -188,7 +188,7 @@ func (oc *WorkflowEngine) ExecuteWorkflow(ctx context.Context) error {
 
 	// Validate DAG
 	if err := oc.dagExecutor.ValidateDAG(); err != nil {
-		return fmt.Errorf("DAG校验失败: %v", err)
+		return fmt.Errorf("DAG validate failed: %v", err)
 	}
 
 	// Update workflow status to running
@@ -431,7 +431,7 @@ func (oc *WorkflowEngine) updateNodeStatus(nodeID string, params Params) error {
 			return err
 		}
 		if err = oc.Repository.UpdateWorkflowInstance(context.TODO(), oc.wf); err != nil {
-			return fmt.Errorf("[WorkflowEngine]更新工作流记录失败: %w", err)
+			return fmt.Errorf("WorkflowEngine update workflow instance failed: %w", err)
 		}
 	}
 
