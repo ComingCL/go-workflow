@@ -14,7 +14,7 @@ import (
 type CronScheduler struct {
 	mu       sync.RWMutex
 	cron     *cron.Cron
-	entryIDs map[string]cron.EntryID // workflow name -> cron entry ID
+	entryIDs map[string]cron.EntryID // workflow template id -> cron entry ID
 
 	// Workflow controller for executing workflows
 	wfController *WorkflowController
