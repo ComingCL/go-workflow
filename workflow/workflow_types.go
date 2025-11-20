@@ -147,6 +147,15 @@ type NodeStatus struct {
 
 type NodeData map[string]interface{}
 
+// AddNodeRequest represents the parameters for adding a new workflow node
+type AddNodeRequest struct {
+	NodeID   string    `json:"nodeId"`
+	NodeName string    `json:"nodeName"`
+	NodeType NodeType  `json:"nodeType"`
+	Data     NodeData  `json:"data"`
+	Phase    NodePhase `json:"phase,omitempty"` // Optional, defaults to NodePending if not provided
+}
+
 // IsScheduled checks if the workflow has a schedule configured
 func (wf *Workflow) IsScheduled() bool {
 	return wf.Spec.Schedule != ""

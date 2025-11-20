@@ -98,26 +98,32 @@ func (oc *WorkflowEngine) registerNodeTypeExecutor(nodeType NodeType, executor N
 }
 
 // AddWorkflowNode adds a workflow node to both DAG and workflow
-func (oc *WorkflowEngine) AddWorkflowNode(nodeID, nodeName string, nodeType NodeType, data NodeData) error {
+func (oc *WorkflowEngine) AddWorkflowNode(req AddNodeRequest) error {
 	oc.mu.Lock()
 	defer oc.mu.Unlock()
 
 	// Add to DAG
 	if err := oc.dagExecutor.AddNode(&WorkflowNode{
-		ID:   nodeID,
-		Name: nodeName,
-		Type: nodeType,
+		ID:   req.NodeID,
+		Name: req.NodeName,
+		Type: req.NodeType,
 	}); err != nil {
 		return fmt.Errorf("failed to add node to DAG: %v", err)
 	}
 
+	// Determine the phase to use
+	phase := NodePending
+	if req.Phase != "" {
+		phase = req.Phase
+	}
+
 	// Add to workflow status
 	nodeStatus := NodeStatus{
-		ID:          nodeID,
-		Name:        nodeName,
-		Type:        nodeType,
-		Phase:       NodePending,
-		Data:        data,
+		ID:          req.NodeID,
+		Name:        req.NodeName,
+		Type:        req.NodeType,
+		Phase:       phase,
+		Data:        req.Data,
 		DisplayName: oc.wf.Name,
 		Children:    []string{},
 	}
@@ -125,9 +131,9 @@ func (oc *WorkflowEngine) AddWorkflowNode(nodeID, nodeName string, nodeType Node
 	if oc.wf.Status.Nodes == nil {
 		oc.wf.Status.Nodes = make(Nodes)
 	}
-	oc.wf.Status.Nodes.Set(nodeID, nodeStatus)
+	oc.wf.Status.Nodes.Set(req.NodeID, nodeStatus)
 
-	oc.woc.logger.Info("added workflow node", "nodeID", nodeID, "nodeType", nodeType)
+	oc.woc.logger.Info("added workflow node", "nodeID", req.NodeID, "nodeType", req.NodeType)
 	return nil
 }
 
