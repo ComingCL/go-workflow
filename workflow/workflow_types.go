@@ -147,6 +147,33 @@ type NodeStatus struct {
 
 type NodeData map[string]interface{}
 
+// IsScheduled checks if the workflow has a schedule configured
+func (wf *Workflow) IsScheduled() bool {
+	return wf.Spec.Schedule != ""
+}
+
+// Suspend checks if the workflow is suspended
+func (wf *Workflow) Suspend() bool {
+	return wf.Spec.Suspend != nil && *wf.Spec.Suspend
+}
+
+// IsRetryable checks if the workflow can be retried based on its current state
+func (wf *Workflow) IsRetryable() bool {
+	// Can retry if workflow is in failed state or has failed/pending nodes
+	if wf.Status.Phase == Failed || wf.Status.Phase == Error {
+		return true
+	}
+
+	// Check if there are any failed or pending nodes
+	for _, node := range wf.Status.Nodes {
+		if node.Phase == NodeFailed || node.Phase == NodeError || node.Phase == NodePending {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Template is a reusable and composable unit of execution in a workflow
 type Template struct {
 	// Name is the name of the template
@@ -161,15 +188,6 @@ func (wf *Workflow) ToJson() (string, error) {
 	return string(b), nil
 }
 
-// IsScheduled returns true if the workflow has a cron schedule
-func (wf *Workflow) IsScheduled() bool {
-	return wf.Spec.Schedule != ""
-}
-
 func (wf *Workflow) SetUID(uid string) {
 	wf.UID = uid
-}
-
-func (wf *Workflow) Suspend() bool {
-	return wf.Spec.Suspend != nil && *wf.Spec.Suspend
 }

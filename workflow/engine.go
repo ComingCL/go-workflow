@@ -24,6 +24,9 @@ type WorkflowEngine struct {
 
 	// Repository workflow storage Repository
 	Repository WorkflowRepository
+
+	// Skip succeeded nodes flag for retry functionality
+	skipSucceededNodes bool
 }
 
 type Result struct {
@@ -36,7 +39,29 @@ type NodeExecutor interface {
 	ExecuteWorkflowNode(ctx context.Context, data NodeData) Result
 }
 
-func NewEngine(ctx context.Context, wf *Workflow, w *WorkflowController, repository WorkflowRepository) (*WorkflowEngine, error) {
+// EngineOption defines a function type for configuring WorkflowEngine
+type EngineOption func(*WorkflowEngine)
+
+// WithSkipSucceededNodes sets the skipSucceededNodes option
+func WithSkipSucceededNodes(skip bool) EngineOption {
+	return func(engine *WorkflowEngine) {
+		engine.skipSucceededNodes = skip
+	}
+}
+
+// NewEngine creates a new WorkflowEngine with optional configuration
+func NewEngine(ctx context.Context, wf *Workflow, w *WorkflowController, repository WorkflowRepository, options ...EngineOption) (*WorkflowEngine, error) {
+	// Validate required parameters
+	if wf == nil {
+		return nil, fmt.Errorf("workflow cannot be nil")
+	}
+	if w == nil {
+		return nil, fmt.Errorf("workflow controller cannot be nil")
+	}
+	if repository == nil {
+		return nil, fmt.Errorf("repository cannot be nil")
+	}
+
 	engine := &WorkflowEngine{
 		ctx:         ctx,
 		wf:          wf,
@@ -44,6 +69,11 @@ func NewEngine(ctx context.Context, wf *Workflow, w *WorkflowController, reposit
 		executorMap: make(map[NodeType]NodeExecutor),
 		dagExecutor: NewWorkflowDAG(),
 		Repository:  repository,
+	}
+
+	// Apply all options
+	for _, option := range options {
+		option(engine)
 	}
 
 	return engine, engine.initializeDAGFromWorkflow()
@@ -63,7 +93,7 @@ func (oc *WorkflowEngine) registerNodeTypeExecutor(nodeType NodeType, executor N
 	}
 
 	oc.executorMap[nodeType] = executor
-	oc.woc.logger.Info("[WorkflowEngine] Registered executor for node type", "nodeType", nodeType)
+	oc.woc.logger.Info("registered executor for node type", "nodeType", nodeType)
 	return nil
 }
 
@@ -97,7 +127,7 @@ func (oc *WorkflowEngine) AddWorkflowNode(nodeID, nodeName string, nodeType Node
 	}
 	oc.wf.Status.Nodes.Set(nodeID, nodeStatus)
 
-	oc.woc.logger.Info("[WorkflowEngine] Added workflow node", "nodeID", nodeID, "nodeType", nodeType)
+	oc.woc.logger.Info("added workflow node", "nodeID", nodeID, "nodeType", nodeType)
 	return nil
 }
 
@@ -138,7 +168,7 @@ func (oc *WorkflowEngine) AddWorkflowDependency(fromNodeID, toNodeID string) err
 	fromNode.Children = append(fromNode.Children, toNodeID)
 	oc.wf.Status.Nodes.Set(fromNodeID, *fromNode)
 
-	oc.woc.logger.Info("[WorkflowEngine] Added dependency", "from", fromNodeID, "to", toNodeID)
+	oc.woc.logger.Info("added dependency", "from", fromNodeID, "to", toNodeID)
 	return nil
 }
 
@@ -182,9 +212,11 @@ func (oc *WorkflowEngine) RemoveDependency(fromNodeID, toNodeID string) error {
 	return nil
 }
 
-// ExecuteWorkflow executes the entire workflow
+// ExecuteWorkflow executes the entire workflow using the engine's configured options
 func (oc *WorkflowEngine) ExecuteWorkflow(ctx context.Context) error {
-	oc.woc.logger.Info("[WorkflowEngine] Starting workflow execution", "workflowName", oc.wf.Metadata.Name)
+	oc.woc.logger.Info("starting workflow execution",
+		"workflowName", oc.wf.Metadata.Name,
+		"skipSucceeded", oc.skipSucceededNodes)
 
 	// Validate DAG
 	if err := oc.dagExecutor.ValidateDAG(); err != nil {
@@ -194,20 +226,19 @@ func (oc *WorkflowEngine) ExecuteWorkflow(ctx context.Context) error {
 	// Update workflow status to running
 	oc.wf.Status.Phase = Running
 
-	// ExecuteWorkflowNode DAG using the new DAG execution method
-	{
-		err := oc.executeDAG(ctx)
-		if err != nil {
-			oc.woc.logger.Error(err, "[WorkflowEngine] Failed to execute DAG")
-		}
+	// Execute DAG
+	err := oc.executeDAG(ctx)
+	if err != nil {
+		oc.woc.logger.Error(err, "failed to execute DAG")
 	}
+
 	// Check if all nodes completed successfully
 	if oc.isWorkflowCompleted() {
 		oc.wf.Status.Phase = Succeeded
-		oc.wf.Status.Message = "[WorkflowEngine] Workflow execute succeeded"
+		oc.wf.Status.Message = "workflow execute succeeded"
 	} else {
 		oc.wf.Status.Phase = Failed
-		oc.wf.Status.Message = "[WorkflowEngine] Workflow execute failed"
+		oc.wf.Status.Message = "workflow execute failed"
 	}
 
 	// Update record
@@ -216,16 +247,16 @@ func (oc *WorkflowEngine) ExecuteWorkflow(ctx context.Context) error {
 
 // executeDAG executes the DAG with DFS-based parallel execution
 func (oc *WorkflowEngine) executeDAG(ctx context.Context) error {
-	oc.woc.logger.Info("[WorkflowEngine] Starting DFS-based DAG execution")
+	oc.woc.logger.Info("starting DFS-based DAG execution")
 
 	// Get root nodes (nodes with no dependencies)
 	rootNodes := oc.dagExecutor.GetRootNodes()
 	if len(rootNodes) == 0 {
-		oc.woc.logger.Info("[WorkflowEngine] No root nodes found")
+		oc.woc.logger.Info("no root nodes found")
 		return nil
 	}
 
-	oc.woc.logger.Info("[WorkflowEngine] Found root nodes", "count", len(rootNodes))
+	oc.woc.logger.Info("found root nodes", "count", len(rootNodes))
 
 	// ExecuteWorkflowNode from all root nodes in parallel
 	return oc.executeRootNodes(ctx, rootNodes)
@@ -274,18 +305,18 @@ func (oc *WorkflowEngine) executeDFSFromNode(ctx context.Context, node *Workflow
 	// Get dependent nodes (children)
 	dependents := oc.dagExecutor.GetDependents(node.ID)
 	if len(dependents) == 0 {
-		oc.woc.logger.Info("[WorkflowEngine] Node completed (leaf node)", "nodeID", node.ID)
+		oc.woc.logger.Info("node completed (leaf node)", "nodeID", node.ID)
 		return nil
 	}
 
 	// Find ready dependents (all dependencies completed)
 	readyDependents := oc.getReadyDependents(dependents)
 	if len(readyDependents) == 0 {
-		oc.woc.logger.Info("[WorkflowEngine] Node completed (no ready dependents)", "nodeID", node.ID)
+		oc.woc.logger.Info("nNode completed (no ready dependents)", "nodeID", node.ID)
 		return nil
 	}
 
-	oc.woc.logger.Info("[WorkflowEngine] Executing dependents", "nodeID", node.ID, "dependentCount", len(readyDependents))
+	oc.woc.logger.Info("executing dependents", "nodeID", node.ID, "dependentCount", len(readyDependents))
 
 	// ExecuteWorkflowNode ready dependents
 	return oc.executeReadyDependents(ctx, readyDependents)
@@ -352,13 +383,20 @@ func (oc *WorkflowEngine) areAllDependenciesCompleted(node *WorkflowNode) bool {
 	return true
 }
 
-// executeNode executes a single node
+// executeNode executes a single node with optional skip logic
 func (oc *WorkflowEngine) executeNode(ctx context.Context, nodeID string) error {
 	oc.mu.Lock()
 	node, err := oc.wf.Status.Nodes.Get(nodeID)
 	if err != nil {
 		oc.mu.Unlock()
 		return fmt.Errorf("node %s not found: %v", nodeID, err)
+	}
+
+	// skip nodes
+	if (oc.skipSucceededNodes && node.Phase == NodeSucceeded) || node.Phase == NodeSkipped {
+		oc.mu.Unlock()
+		oc.woc.logger.Info("skipping already completed node", "nodeID", nodeID, "phase", node.Phase)
+		return nil
 	}
 
 	nodeType := node.Type
@@ -369,12 +407,13 @@ func (oc *WorkflowEngine) executeNode(ctx context.Context, nodeID string) error 
 	}
 	oc.mu.Unlock()
 
-	oc.woc.logger.Info("[WorkflowEngine] Executing node", "nodeID", nodeID, "nodeType", nodeType)
+	oc.woc.logger.Info("executing node", "nodeID", nodeID, "nodeType", nodeType)
 
 	now := metav1.Now()
 	// Update node status to running
 	if err = oc.updateNodeStatus(nodeID, Params{
-		Phase: NodeRunning,
+		Phase:     NodeRunning,
+		StartedAt: &now,
 	}); err != nil {
 		return err
 	}
@@ -395,7 +434,7 @@ func (oc *WorkflowEngine) executeNode(ctx context.Context, nodeID string) error 
 	}); err != nil {
 		return err
 	}
-	oc.woc.logger.Info("[WorkflowEngine] Node executed successfully", "nodeID", nodeID)
+	oc.woc.logger.Info("node executed", "nodeID", nodeID, "phase", phase)
 
 	return nil
 }
@@ -453,7 +492,13 @@ func (oc *WorkflowEngine) isWorkflowCompleted() bool {
 
 // initializeDAGFromWorkflow initializes DAG from existing workflow
 func (oc *WorkflowEngine) initializeDAGFromWorkflow() error {
+	if oc.wf == nil {
+		return nil
+	}
+
+	// Initialize Nodes map if it's nil
 	if oc.wf.Status.Nodes == nil {
+		oc.wf.Status.Nodes = make(map[string]NodeStatus)
 		return nil
 	}
 	var err error
@@ -498,10 +543,9 @@ func (oc *WorkflowEngine) RegisterFunc(key NodeType, f NodeExecutor) error {
 	return oc.registerNodeTypeExecutor(key, f)
 }
 
+// operator executes the workflow (used by WorkflowController)
 func (oc *WorkflowEngine) operator(ctx context.Context) {
-	err := oc.ExecuteWorkflow(ctx)
-	if err != nil {
-		oc.woc.logger.Error(err, "[WorkflowEngine] execute workflow failed")
-		return
+	if err := oc.ExecuteWorkflow(ctx); err != nil {
+		oc.woc.logger.Error(err, "workflow execution failed")
 	}
 }
