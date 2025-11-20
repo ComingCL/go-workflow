@@ -156,10 +156,15 @@ func main() {
 	}
 
 	// Add a sample node to the workflow
-	err = engine.AddWorkflowNode("task1", "Scheduled Task", NodeTypeBuild, map[string]interface{}{
-		"message":   "Hello from scheduled workflow",
-		"timestamp": time.Now().Format("15:04:05"),
-		"counter":   0,
+	err = engine.AddWorkflowNode(workflow.AddNodeRequest{
+		NodeID:   "task1",
+		NodeName: "Scheduled Task",
+		NodeType: NodeTypeBuild,
+		Data: map[string]interface{}{
+			"message":   "Hello from scheduled workflow",
+			"timestamp": time.Now().Format("15:04:05"),
+			"counter":   0,
+		},
 	})
 	if err != nil {
 		fmt.Printf("❌ Failed to add node: %v\n", err)

@@ -163,9 +163,14 @@ func main() {
 	// Add nodes
 	fmt.Println("\n📦 Adding workflow nodes...")
 
-	err = engine.AddWorkflowNode("node1", "Build Node", NodeTypeBuild, map[string]interface{}{
-		"command":  "go build",
-		"nodeType": "build",
+	err = engine.AddWorkflowNode(workflow.AddNodeRequest{
+		NodeID:   "node1",
+		NodeName: "Build Node",
+		NodeType: NodeTypeBuild,
+		Data: map[string]interface{}{
+			"command":  "go build",
+			"nodeType": "build",
+		},
 	})
 	if err != nil {
 		fmt.Printf("❌ Failed to add node1: %v\n", err)
@@ -173,9 +178,14 @@ func main() {
 	}
 	fmt.Println("  ✅ Added Build Node (node1)")
 
-	err = engine.AddWorkflowNode("node2", "Deploy Node", NodeTypeDeploy, map[string]interface{}{
-		"target":   "production",
-		"nodeType": "deploy",
+	err = engine.AddWorkflowNode(workflow.AddNodeRequest{
+		NodeID:   "node2",
+		NodeName: "Deploy Node",
+		NodeType: NodeTypeDeploy,
+		Data: map[string]interface{}{
+			"target":   "production",
+			"nodeType": "deploy",
+		},
 	})
 	if err != nil {
 		fmt.Printf("❌ Failed to add node2: %v\n", err)

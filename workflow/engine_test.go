@@ -259,7 +259,12 @@ func TestExecuteWorkflow(t *testing.T) {
 		}
 
 		// Add nodes
-		err = engine.AddWorkflowNode("node1", "Node 1", nodeType, NodeData{})
+		err = engine.AddWorkflowNode(AddNodeRequest{
+			NodeID:   "node1",
+			NodeName: "Node 1",
+			NodeType: nodeType,
+			Data:     NodeData{},
+		})
 		if err != nil {
 			t.Fatalf("AddWorkflowNode() failed: %v", err)
 		}
@@ -307,12 +312,22 @@ func TestExecuteWorkflow(t *testing.T) {
 		}
 
 		// Add nodes with dependency
-		err = engine.AddWorkflowNode("node1", "Node 1", nodeType, NodeData{})
+		err = engine.AddWorkflowNode(AddNodeRequest{
+			NodeID:   "node1",
+			NodeName: "Node 1",
+			NodeType: nodeType,
+			Data:     NodeData{},
+		})
 		if err != nil {
 			t.Fatalf("AddWorkflowNode() failed: %v", err)
 		}
 
-		err = engine.AddWorkflowNode("node2", "Node 2", nodeType, NodeData{})
+		err = engine.AddWorkflowNode(AddNodeRequest{
+			NodeID:   "node2",
+			NodeName: "Node 2",
+			NodeType: nodeType,
+			Data:     NodeData{},
+		})
 		if err != nil {
 			t.Fatalf("AddWorkflowNode() failed: %v", err)
 		}
@@ -359,7 +374,12 @@ func TestExecuteWorkflow(t *testing.T) {
 		}
 
 		// Add node
-		err = engine.AddWorkflowNode("node1", "Node 1", nodeType, NodeData{})
+		err = engine.AddWorkflowNode(AddNodeRequest{
+			NodeID:   "node1",
+			NodeName: "Node 1",
+			NodeType: nodeType,
+			Data:     NodeData{},
+		})
 		if err != nil {
 			t.Fatalf("AddWorkflowNode() failed: %v", err)
 		}
@@ -409,7 +429,12 @@ func TestExecuteWorkflow(t *testing.T) {
 
 		// Add node without registering executor
 		nodeType := NodeType("unregistered")
-		err = engine.AddWorkflowNode("node1", "Node 1", nodeType, NodeData{})
+		err = engine.AddWorkflowNode(AddNodeRequest{
+			NodeID:   "node1",
+			NodeName: "Node 1",
+			NodeType: nodeType,
+			Data:     NodeData{},
+		})
 		if err != nil {
 			t.Fatalf("AddWorkflowNode() failed: %v", err)
 		}
@@ -450,7 +475,12 @@ func TestSkipSucceededNodes(t *testing.T) {
 		}
 
 		// Add node
-		err = engine.AddWorkflowNode("node1", "Node 1", nodeType, NodeData{})
+		err = engine.AddWorkflowNode(AddNodeRequest{
+			NodeID:   "node1",
+			NodeName: "Node 1",
+			NodeType: nodeType,
+			Data:     NodeData{},
+		})
 		if err != nil {
 			t.Fatalf("AddWorkflowNode() failed: %v", err)
 		}
@@ -496,7 +526,12 @@ func TestSkipSucceededNodes(t *testing.T) {
 		}
 
 		// Add node
-		err = engine.AddWorkflowNode("node1", "Node 1", nodeType, NodeData{})
+		err = engine.AddWorkflowNode(AddNodeRequest{
+			NodeID:   "node1",
+			NodeName: "Node 1",
+			NodeType: nodeType,
+			Data:     NodeData{},
+		})
 		if err != nil {
 			t.Fatalf("AddWorkflowNode() failed: %v", err)
 		}

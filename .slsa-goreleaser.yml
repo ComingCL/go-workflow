@@ -1,0 +1,9 @@
+version: 1
+goos: linux
+goarch: amd64
+binary: go-workflow
+ldflags:
+  - "-s -w"
+  - "-X main.version={{ .Version }}"
+  - "-X main.commit={{ .FullCommit }}"
+  - "-X main.date={{ .Date }}"
