@@ -315,31 +315,24 @@ func (oc *WorkflowEngine) executeDFSFromNode(ctx context.Context, node *Workflow
 		return nil
 	}
 
-	// Find ready dependents (all dependencies completed)
-	readyDependents := oc.getReadyDependents(dependents)
-	if len(readyDependents) == 0 {
-		oc.woc.logger.Info("nNode completed (no ready dependents)", "nodeID", node.ID)
-		return nil
-	}
-
-	oc.woc.logger.Info("executing dependents", "nodeID", node.ID, "dependentCount", len(readyDependents))
+	oc.woc.logger.Info("executing dependents", "nodeID", node.ID, "dependents", len(dependents))
 
 	// ExecuteWorkflowNode ready dependents
-	return oc.executeReadyDependents(ctx, readyDependents)
+	return oc.executeDependents(ctx, dependents)
 }
 
-// executeReadyDependents executes ready dependent nodes (parallel if multiple, serial if single)
-func (oc *WorkflowEngine) executeReadyDependents(ctx context.Context, readyDependents []*WorkflowNode) error {
-	if len(readyDependents) == 1 {
+// executeDependents executes ready dependent nodes (parallel if multiple, serial if single)
+func (oc *WorkflowEngine) executeDependents(ctx context.Context, dependents []*WorkflowNode) error {
+	if len(dependents) == 1 {
 		// Single dependent - execute serially
-		return oc.executeDFSFromNode(ctx, readyDependents[0])
+		return oc.executeDFSFromNode(ctx, dependents[0])
 	}
 
 	// Multiple dependents - execute in parallel
 	var wg sync.WaitGroup
-	errChan := make(chan error, len(readyDependents))
+	errChan := make(chan error, len(dependents))
 
-	for _, dependent := range readyDependents {
+	for _, dependent := range dependents {
 		wg.Add(1)
 		go func(dep *WorkflowNode) {
 			defer wg.Done()
@@ -360,33 +353,6 @@ func (oc *WorkflowEngine) executeReadyDependents(ctx context.Context, readyDepen
 	}
 
 	return nil
-}
-
-// getReadyDependents filters dependents that are ready to execute (all dependencies completed)
-func (oc *WorkflowEngine) getReadyDependents(dependents []*WorkflowNode) []*WorkflowNode {
-	readyDependents := make([]*WorkflowNode, 0)
-
-	for _, dependent := range dependents {
-		if oc.areAllDependenciesCompleted(dependent) {
-			readyDependents = append(readyDependents, dependent)
-		}
-	}
-
-	return readyDependents
-}
-
-// areAllDependenciesCompleted checks if all dependencies of a node are completed
-func (oc *WorkflowEngine) areAllDependenciesCompleted(node *WorkflowNode) bool {
-	for _, depID := range node.Dependencies {
-		if depNode, err := oc.dagExecutor.GetNode(depID); err == nil {
-			if !depNode.Status.Completed() {
-				return false
-			}
-		} else {
-			return false // Dependency not found
-		}
-	}
-	return true
 }
 
 // executeNode executes a single node with optional skip logic
