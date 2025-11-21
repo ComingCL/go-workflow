@@ -408,7 +408,7 @@ func (oc *WorkflowEngine) executeNode(ctx context.Context, nodeID string) error 
 	}
 	oc.woc.logger.Info("node executed", "nodeID", nodeID, "phase", phase)
 
-	return nil
+	return res.Err
 }
 
 type Params struct {
